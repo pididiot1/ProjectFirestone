@@ -94,7 +94,16 @@ void main(void)
 
   while (1)
   {
-	  BSP_TOGGLE_LED2();
+	  do {                                       // wait for button
+	      if (BSP_BUTTON1())
+	      {
+	        break;
+	      }
+	    } while (1);
+	  char msg[] = "TEST";
+	  SMPL_Send(linkIDTemp, (uint8_t *)&msg, sizeof(msg));
+	  /*
+	BSP_TOGGLE_LED2();
     // adc with dtc in use
     ADC10CTL0 &= ~ENC;						// turn off adc10
     while (ADC10CTL1 & BUSY);               // wait if adc10 core is active
@@ -111,7 +120,7 @@ void main(void)
 	// turn on radio and tx sensor struct
     SMPL_Ioctl( IOCTL_OBJ_RADIO, IOCTL_ACT_RADIO_AWAKE, 0);
     SMPL_Send(linkIDTemp, (uint8_t *)&sensor, sizeof( my_sensors ));
-
+*/
   }
 }
 

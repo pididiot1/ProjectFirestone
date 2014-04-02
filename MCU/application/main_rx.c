@@ -2,6 +2,7 @@
 
 #include <msp430.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 
 #include "vlo_rand.h"
@@ -42,14 +43,15 @@ void createRandomAddress(void);
 void main(void)
 {
 
-  	BSP_Init();                               // init bsp first, then simpliciti
+  	BSP_Init();                              // init bsp first, then simpliciti
+  	/*
   	while(1) {
   		BSP_TURN_OFF_LED1();
   		NWK_DELAY(2000);
   		BSP_TURN_ON_LED1();
   		NWK_DELAY(2000);
   	}
-
+	*/
   	// address check and creation
 	Flash_Addr = (char *)0x10F0;              // RF Address = 0x10F0
 	if( Flash_Addr[0] == 0xFF &&              // Check if device Address is missing
@@ -78,12 +80,22 @@ void main(void)
   	BSP_TURN_OFF_LED1();                      // red off
   	NWK_DELAY(2000);                             // for 2 seconds
   	BSP_TURN_ON_LED1();
+  	BSP_TURN_OFF_LED1();
 
   	_EINT();                                  // Enable Global Interupts
 
 	while (1)
 	{
+		//SMPL_Ioctl( IOCTL_OBJ_RADIO, IOCTL_ACT_RADIO_AWAKE, 0);
+		SMPL_Receive(linkIDTemp, (uint8_t *)&smpl_buffer, &len);
 
+
+		if(strcmp(smpl_buffer, "TEST") == 0) {
+			BSP_TURN_ON_LED1();
+			NWK_DELAY(4000);
+			BSP_TURN_OFF_LED1();
+		}
+		smpl_buffer[0] = '\n';
 	}
 
 }

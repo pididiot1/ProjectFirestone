@@ -8,6 +8,7 @@ application/main_rx.obj: C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/intrins
 application/main_rx.obj: C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/stdio.h
 application/main_rx.obj: C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/linkage.h
 application/main_rx.obj: C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/stdarg.h
+application/main_rx.obj: C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/string.h
 application/main_rx.obj: C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/stdlib.h
 application/main_rx.obj: ../application/vlo_rand.h
 application/main_rx.obj: C:/Texas\ Instruments/SimpliciTI-CCS-1.1.1/Components/bsp/bsp.h
@@ -35,6 +36,7 @@ C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/intrinsics.h:
 C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/stdio.h: 
 C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/linkage.h: 
 C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/stdarg.h: 
+C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/string.h: 
 C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include/stdlib.h: 
 ../application/vlo_rand.h: 
 C:/Texas\ Instruments/SimpliciTI-CCS-1.1.1/Components/bsp/bsp.h: 
