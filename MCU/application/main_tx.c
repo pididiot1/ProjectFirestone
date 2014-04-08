@@ -12,6 +12,7 @@
 #include "nwk_api.h"
 
 #include "vlo_rand.h"
+#include <string.h>
 
 /* global variables */
 
@@ -33,6 +34,7 @@ uint8_t   msg[8];
 
 addr_t lAddr;
 char *Flash_Addr;
+char uartMsg[20];
 
 /* end globals */
 
@@ -40,69 +42,63 @@ char *Flash_Addr;
 void Init_ADC10(void);
 void Init_TIMER0A0(void);
 void createRandomAddress(void);
+void Init_UART(void);
+void Init_Addr(void);
 
 /* end prototypes */
 
 void main(void)
 {
-
+	/*
 	sensor.cadc = 'A';
 	sensor.iadc = 125;
+	 */
 
-  	BSP_Init();                               // init bsp first, then simpliciti
+	BSP_Init();                               // init bsp first, then simpliciti
 
-  	BCSCTL3 = LFXT1S_2; 					// aclk = vlo
 
-  	// address check and creation
-	Flash_Addr = (char *)0x10F0;              // RF Address = 0x10F0
-	if( Flash_Addr[0] == 0xFF &&              // Check if device Address is missing
-    	Flash_Addr[1] == 0xFF &&
-    	Flash_Addr[2] == 0xFF &&
-    	Flash_Addr[3] == 0xFF )
-  	{
-    	createRandomAddress();                  // Create Random device address at
-	}                                         // initial startup if missing
-	lAddr.addr[0] = Flash_Addr[0];
-	lAddr.addr[1] = Flash_Addr[1];
-	lAddr.addr[2] = Flash_Addr[2];
-	lAddr.addr[3] = Flash_Addr[3];
-	// load address
-	SMPL_Ioctl(IOCTL_OBJ_ADDR, IOCTL_ACT_SET, &lAddr);
+	Init_Addr();
 
-  	SMPL_Init(NULL);                          // null callback for TX
 
-  	Init_ADC10();
-  	Init_TIMER0A0();
+	SMPL_Init(NULL);                          // null callback for TX
 
-  	do {                                       // wait for button
-    if (BSP_BUTTON1())
-    {
-      break;
-    }
-  } while (1);
+	Init_UART();
+//	__bis_SR_register(LPM0_bits + GIE);       // Enter LPM0 wait for UART Rx
 
-  while (SMPL_SUCCESS != SMPL_Link(&linkIDTemp))    // link to Rx
-  {
-    BSP_TOGGLE_LED1();                      // toggle red for not linked
-  }
 
-  	BSP_TURN_OFF_LED1();                      // red off
-  	BSP_Delay(2000);                             // for 2 seconds
-  	BSP_TURN_ON_LED1();
 
-  	_EINT();                                  // Enable Global Interupts
+	//Example code pieces that don't need Init
+	//  	Init_ADC10();
+	//  	Init_TIMER0A0();
 
-  while (1)
-  {
-	  do {                                       // wait for button
-	      if (BSP_BUTTON1())
-	      {
-	        break;
-	      }
-	    } while (1);
-	  char msg[] = "TEST";
-	  SMPL_Send(linkIDTemp, (uint8_t *)&msg, sizeof(msg));
-	  /*
+	do {                                       // wait for button
+		if (BSP_BUTTON1())
+		{
+			break;
+		}
+	} while (1);
+
+	while (SMPL_SUCCESS != SMPL_Link(&linkIDTemp))    // link to Rx
+	{
+		BSP_TOGGLE_LED1();                      // toggle red for not linked
+	}
+
+	BSP_TURN_OFF_LED1();                      // red off
+	BSP_Delay(2000);                             // for 2 seconds
+	BSP_TURN_ON_LED1();
+
+	_EINT();                                  // Enable Global Interupts
+
+	while (1)
+	{
+		__bis_SR_register(LPM0_bits + GIE);       // Enter LPM0 wait for UART Rx
+		char msg[] = "TEST";
+		if(strstr(uartMsg, "go") != 0) {
+			SMPL_Send(linkIDTemp, (uint8_t *)&msg, sizeof(msg));
+		}
+	}
+
+	/*
 	BSP_TOGGLE_LED2();
     // adc with dtc in use
     ADC10CTL0 &= ~ENC;						// turn off adc10
@@ -120,21 +116,95 @@ void main(void)
 	// turn on radio and tx sensor struct
     SMPL_Ioctl( IOCTL_OBJ_RADIO, IOCTL_ACT_RADIO_AWAKE, 0);
     SMPL_Send(linkIDTemp, (uint8_t *)&sensor, sizeof( my_sensors ));
-*/
-  }
+
+  }*/
+}
+
+void Init_UART(void)
+{
+
+	WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
+	if (CALBC1_1MHZ==0xFF)					// If calibration constant erased
+	{
+		while(1);                               // do not load, trap CPU!!
+	}
+	DCOCTL = 0;                               // Select lowest DCOx and MODx settings
+	BCSCTL1 = CALBC1_1MHZ;                    // Set DCO
+	DCOCTL = CALDCO_1MHZ;
+	P1SEL |= BIT1 | BIT2 ;                     // P1.1 = RXD, P1.2=TXD
+	P1SEL2 |= BIT1 | BIT2 ;                    // P1.1 = RXD, P1.2=TXD
+	UCA0CTL1 |= UCSSEL_2;                     // SMCLK
+	UCA0BR0 = 104;                            // 1MHz 9600
+	UCA0BR1 = 0;                              // 1MHz 9600
+	UCA0MCTL = UCBRS0;                        // Modulation UCBRSx = 1
+	UCA0CTL1 &= ~UCSWRST;                     // **Initialize USCI state machine**
+	IE2 |= UCA0RXIE;                          // Enable USCI_A0 RX interrupt
+
+
+}
+
+/*
+#pragma vector=USCIAB0TX_VECTOR
+__interrupt void USCI0TX_ISR(void)
+{
+  UCA0TXBUF = string1[i++];                 // TX next character
+
+  if (i == sizeof string1 - 1)              // TX over?
+    IE2 &= ~UCA0TXIE;                       // Disable USCI_A0 TX interrupt
+}
+ */
+#pragma vector=USCIAB0RX_VECTOR
+__interrupt void USCI0RX_ISR(void)
+{
+	UCA0TXBUF = UCA0RXBUF;
+
+	uartMsg[i++] = UCA0RXBUF;
+	if(UCA0RXBUF == '\n' || UCA0RXBUF == '\r') {
+		i = 0;
+		LPM0_EXIT;
+	}
+
+	/*
+  if (UCA0RXBUF == 'u')                     // 'u' received?
+  {
+    i = 0;
+    IE2 |= UCA0TXIE;                        // Enable USCI_A0 TX interrupt
+    UCA0TXBUF = string1[i++];
+  }*/
+}
+
+void Init_Addr(void)
+{
+	BCSCTL3 = LFXT1S_2; 					// aclk = vlo
+
+	// address check and creation
+	Flash_Addr = (char *)0x10F0;              // RF Address = 0x10F0
+	if( Flash_Addr[0] == 0xFF &&              // Check if device Address is missing
+			Flash_Addr[1] == 0xFF &&
+			Flash_Addr[2] == 0xFF &&
+			Flash_Addr[3] == 0xFF )
+	{
+		createRandomAddress();                  // Create Random device address at
+	}                                         // initial startup if missing
+	lAddr.addr[0] = Flash_Addr[0];
+	lAddr.addr[1] = Flash_Addr[1];
+	lAddr.addr[2] = Flash_Addr[2];
+	lAddr.addr[3] = Flash_Addr[3];
+	// load address
+	SMPL_Ioctl(IOCTL_OBJ_ADDR, IOCTL_ACT_SET, &lAddr);
 }
 
 // setup adc10 to use dtc, 1 channels,
 void Init_ADC10(void)
 {
 	ADC10CTL0 &= ~ENC;													// turn off adc for settings
-    ADC10CTL0 = ADC10ON + MSC + ADC10SHT_2 + SREF_0;					// turn on; multisample; 16 cycles; vcc/v--
-    ADC10CTL1 = CONSEQ_2 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_10;	// repeat single; smclk; /1; int temp sensor
-    //ADC10AE0 = 0x01;													// enable adc channel; not needed for int temp
-    ADC10DTC0 = ADC10CT;												// continuous transfer
-    ADC10DTC1 = 10;														// 10 transfers/block
-    ADC10SA = (unsigned int)ADCdata;									// start address for dtc conversions
-    ADC10CTL0 |= ENC;
+	ADC10CTL0 = ADC10ON + MSC + ADC10SHT_2 + SREF_0;					// turn on; multisample; 16 cycles; vcc/v--
+	ADC10CTL1 = CONSEQ_2 + ADC10SSEL_0 + ADC10DIV_0 + SHS_0 + INCH_10;	// repeat single; smclk; /1; int temp sensor
+	//ADC10AE0 = 0x01;													// enable adc channel; not needed for int temp
+	ADC10DTC0 = ADC10CT;												// continuous transfer
+	ADC10DTC1 = 10;														// 10 transfers/block
+	ADC10SA = (unsigned int)ADCdata;									// start address for dtc conversions
+	ADC10CTL0 |= ENC;
 }
 
 void createRandomAddress(void)
@@ -145,33 +215,33 @@ void createRandomAddress(void)
 
 	do
 	{
-    	rand = TI_getRandomIntegerFromADC();    // first byte can not be 0x00 of 0xFF
+		rand = TI_getRandomIntegerFromADC();    // first byte can not be 0x00 of 0xFF
 	}
-  	while( (rand & 0xFF00)==0xFF00 || (rand & 0xFF00)==0x0000 );
-  	rand2 = TI_getRandomIntegerFromADC();
+	while( (rand & 0xFF00)==0xFF00 || (rand & 0xFF00)==0x0000 );
+	rand2 = TI_getRandomIntegerFromADC();
 
-  	BCSCTL1 = CALBC1_1MHZ;                    // Set DCO to 1MHz
-  	DCOCTL = CALDCO_1MHZ;
-  	FCTL2 = FWKEY + FSSEL0 + FN1;             // MCLK/3 for Flash Timing Generator
-  	FCTL3 = FWKEY + LOCKA;                    // Clear LOCK & LOCKA bits
-  	FCTL1 = FWKEY + WRT;                      // Set WRT bit for write operation
+	BCSCTL1 = CALBC1_1MHZ;                    // Set DCO to 1MHz
+	DCOCTL = CALDCO_1MHZ;
+	FCTL2 = FWKEY + FSSEL0 + FN1;             // MCLK/3 for Flash Timing Generator
+	FCTL3 = FWKEY + LOCKA;                    // Clear LOCK & LOCKA bits
+	FCTL1 = FWKEY + WRT;                      // Set WRT bit for write operation
 
 	Flash_Addr[0]=(rand>>8) & 0xFF;
-  	Flash_Addr[1]=rand & 0xFF;
-  	Flash_Addr[2]=(rand2>>8) & 0xFF;
-  	Flash_Addr[3]=rand2 & 0xFF;
+	Flash_Addr[1]=rand & 0xFF;
+	Flash_Addr[2]=(rand2>>8) & 0xFF;
+	Flash_Addr[3]=rand2 & 0xFF;
 
-  	FCTL1 = FWKEY;                            // Clear WRT bit
-  	FCTL3 = FWKEY + LOCKA + LOCK;             // Set LOCK & LOCKA bit
+	FCTL1 = FWKEY;                            // Clear WRT bit
+	FCTL3 = FWKEY + LOCKA + LOCK;             // Set LOCK & LOCKA bit
 }
 
 
 // enable Timer0a0 16bit up mode
 void Init_TIMER0A0(void)
 {
-  	TA0CCTL0 = CCIE;	// no capture, toggle
+	TA0CCTL0 = CCIE;	// no capture, toggle
 	TA0CCR0 = 12000;    // about 1 sec with vlo
-    TA0CTL = TASSEL_1 + ID_0 + MC_1;		// ACLK, /1, up mode
+	TA0CTL = TASSEL_1 + ID_0 + MC_1;		// ACLK, /1, up mode
 }
 
 // Timer0A0 isr
@@ -187,5 +257,5 @@ __interrupt void Timer0A0(void)
 	{
 		sensor.cadc++;
 	}
-  	LPM3_EXIT;                                // Exit LPM
+	LPM3_EXIT;                                // Exit LPM
 }
