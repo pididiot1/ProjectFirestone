@@ -14,6 +14,8 @@
 #include "vlo_rand.h"
 #include <string.h>
 
+#define UART_BUF_LEN  150
+
 /* global variables */
 
 typedef struct sensors_struct
@@ -34,7 +36,9 @@ uint8_t   msg[8];
 
 addr_t lAddr;
 char *Flash_Addr;
-char uartMsg[20];
+char uartMsg[UART_BUF_LEN];
+int msgLen;
+const char string1[] = { "Hello World\r\n" };
 
 /* end globals */
 
@@ -63,7 +67,7 @@ void main(void)
 	SMPL_Init(NULL);                          // null callback for TX
 
 	Init_UART();
-//	__bis_SR_register(LPM0_bits + GIE);       // Enter LPM0 wait for UART Rx
+	//	__bis_SR_register(LPM0_bits + GIE);       // Enter LPM0 wait for UART Rx
 
 
 
@@ -91,11 +95,31 @@ void main(void)
 
 	while (1)
 	{
+		/*
+		do {                                       // wait for button
+			if (BSP_BUTTON1())
+			{
+				break;
+			}
+		} while (1);
+		i = 0;
+		IE2 |= UCA0TXIE;                        // Enable USCI_A0 TX interrupt
+		UCA0TXBUF = string1[i++];
+		*/
 		__bis_SR_register(LPM0_bits + GIE);       // Enter LPM0 wait for UART Rx
-		char msg[] = "TEST";
+		SMPL_Send(linkIDTemp, (uint8_t *)&uartMsg, msgLen);
+
 		if(strstr(uartMsg, "go") != 0) {
 			SMPL_Send(linkIDTemp, (uint8_t *)&msg, sizeof(msg));
 		}
+
+
+		//Clear UART buffer
+		int j;
+		for(j = 0; j < UART_BUF_LEN; j++) {
+			uartMsg[j] = 0;
+		}
+
 	}
 
 	/*
@@ -143,7 +167,7 @@ void Init_UART(void)
 
 }
 
-/*
+
 #pragma vector=USCIAB0TX_VECTOR
 __interrupt void USCI0TX_ISR(void)
 {
@@ -152,14 +176,15 @@ __interrupt void USCI0TX_ISR(void)
   if (i == sizeof string1 - 1)              // TX over?
     IE2 &= ~UCA0TXIE;                       // Disable USCI_A0 TX interrupt
 }
- */
+
 #pragma vector=USCIAB0RX_VECTOR
 __interrupt void USCI0RX_ISR(void)
 {
 	UCA0TXBUF = UCA0RXBUF;
 
 	uartMsg[i++] = UCA0RXBUF;
-	if(UCA0RXBUF == '\n' || UCA0RXBUF == '\r') {
+	if(UCA0RXBUF == '!' || UCA0RXBUF == 0xD) {
+		msgLen = i;
 		i = 0;
 		LPM0_EXIT;
 	}
