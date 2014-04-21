@@ -41,16 +41,6 @@
 			<locationURI>PARENT-6-PROJECT_LOC/Texas%20Instruments/SimpliciTI-CCS-1.1.1/Components/bsp/bsp_macros.h</locationURI>
 		</link>
 		<link>
-			<name>configuration/smpl_nwk_config.dat</name>
-			<type>1</type>
-			<locationURI>PARENT-6-PROJECT_LOC/Texas%20Instruments/SimpliciTI-CCS-1.1.1/Projects/Examples/eZ430RF/Simple_Peer_to_Peer/CCS/Configuration/smpl_nwk_config.dat</locationURI>
-		</link>
-		<link>
-			<name>end device/smpl_config.dat</name>
-			<type>1</type>
-			<locationURI>PARENT-6-PROJECT_LOC/Texas%20Instruments/SimpliciTI-CCS-1.1.1/Projects/Examples/eZ430RF/Simple_Peer_to_Peer/CCS/Configuration/End_Device/smpl_config.dat</locationURI>
-		</link>
-		<link>
 			<name>mrfi/mrfi.c</name>
 			<type>1</type>
 			<locationURI>PARENT-6-PROJECT_LOC/Texas%20Instruments/SimpliciTI-CCS-1.1.1/Components/mrfi/mrfi.c</locationURI>
