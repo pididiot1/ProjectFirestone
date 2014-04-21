@@ -15,19 +15,16 @@
 #include "nwk_types.h"
 #include "nwk_api.h"
 
+#define PIN0 1<<0
+#define PIN1 1<<1
+#define PIN2 1<<2
 #define PIN3 1<<3
 #define PIN4 1<<4
 #define PIN5 1<<5
+#define PIN6 1<<6
+#define PIN7 1<<7
 
 /* global variables */
-
-typedef struct sensors_struct
-{
-	char cadc;
-	int iadc;
-}my_sensors;
-
-struct sensors_struct sensor;
 
 /* bsp related variables */
 linkID_t  linkIDTemp;
@@ -65,7 +62,7 @@ void main(void)
 			Flash_Addr[2] == 0xFF &&
 			Flash_Addr[3] == 0xFF )
 	{
-		createRandomAddress();                  // Create Random device address at
+		//createRandomAddress();                  // Create Random device address at
 	}                                         // initial startup if missing
 	lAddr.addr[0] = Flash_Addr[0];
 	lAddr.addr[1] = Flash_Addr[1];
@@ -115,7 +112,7 @@ static uint8_t sRxCallback(linkID_t linkIDTemp)
 
 	if(strstr(smpl_buffer, "TEST") != NULL)
 	{
-		CCTL0 ^= CCIE;                             // CCR0 interrupt toggle
+		TA1CCTL0 ^= CCIE;                             // CCR0 interrupt toggle
 		P1OUT &= ~(PIN3 | PIN4 | PIN5);            // Toggle P2
 		//BSP_TOGGLE_LED1();
 	}
@@ -138,9 +135,11 @@ void Init_LED(void)
 {
 	WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
 	P2DIR |= (PIN3 | PIN4 | PIN5);              // P2 output
-//	CCTL0 = CCIE;                             // CCR0 interrupt toggle
-	CCR0 = 50000;
-	TACTL = TASSEL_2 + MC_2;                  // SMCLK, contmode
+	TA1CCTL0 = CCIE;                             // CCR0 interrupt toggle
+	TA1CCR0 = 50000;
+	TA1CTL = TASSEL_2 + MC_2;                  // SMCLK, contmode
+
+	__no_operation();
 }
 
 // Timer A0 interrupt service routine
@@ -148,9 +147,10 @@ void Init_LED(void)
 __interrupt void Timer_A (void)
 {
   P2OUT ^= (PIN3 | PIN4 | PIN5);                            // Toggle P1.0
-  CCR0 += 50000;                            // Add Offset to CCR0
+  TA1CCR0 += 50000;                            // Add Offset to CCR0
 }
 
+/*
 void createRandomAddress(void)
 {
 	unsigned int rand, rand2;
@@ -177,4 +177,4 @@ void createRandomAddress(void)
 
 	FCTL1 = FWKEY;                            // Clear WRT bit
 	FCTL3 = FWKEY + LOCKA + LOCK;             // Set LOCK & LOCKA bit
-}
+} */
