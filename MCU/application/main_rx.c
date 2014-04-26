@@ -45,6 +45,8 @@ void Init_LED(void);
 void main(void)
 {
 
+	WDTCTL = WDTPW | WDTHOLD;
+
 	BSP_Init();                              // init bsp first, then simpliciti
 	Init_LED();
 	/*
