@@ -22,7 +22,7 @@
 // Format of RX/TX data = (0) Normal mode, use FIFOs for RX and TX
 // CRC operation = (1) CRC calculation in TX and CRC check in RX enabled
 // Forward Error Correction = 
-// Length configuration = (0) Fixed packet length, packet length configured by PKTLEN
+// Length configuration = (1) Variable length packets, packet length configured by the first received byte after sync word.
 // Packetlength = 61
 // Preamble count = (2)  4 bytes
 // Append status = 1
@@ -64,9 +64,9 @@ RF_SETTINGS rfSettings = {
     0x29,   // IOCFG2    GDO2 output pin configuration.
     0x06,   // IOCFG0    GDO0 output pin configuration. Refer to SmartRF® Studio User Manual for detailed pseudo register explanation.
     0x04,   // PKTCTRL1  Packet automation control.
-    0x04,   // PKTCTRL0  Packet automation control.
+    0x05,   // PKTCTRL0  Packet automation control.
     0x00,   // ADDR      Device address.
-    0x05    // PKTLEN    Packet length.
+    0x78    // PKTLEN    Packet length.
 };
 
 #elif defined MHZ_868
@@ -90,7 +90,7 @@ RF_SETTINGS rfSettings = {
 // Format of RX/TX data = (0) Normal mode, use FIFOs for RX and TX
 // CRC operation = (1) CRC calculation in TX and CRC check in RX enabled
 // Forward Error Correction = 
-// Length configuration = (0) Fixed packet length, packet length configured by PKTLEN
+// Length configuration = (1) Variable length packets, packet length configured by the first received byte after sync word.
 // Packetlength = 61
 // Preamble count = (2)  4 bytes
 // Append status = 1
@@ -132,9 +132,9 @@ RF_SETTINGS rfSettings = {
     0x29,   // IOCFG2    GDO2 output pin configuration.
     0x06,   // IOCFG0    GDO0 output pin configuration. Refer to SmartRF® Studio User Manual for detailed pseudo register explanation.
     0x04,   // PKTCTRL1  Packet automation control.
-    0x04,   // PKTCTRL0  Packet automation control.
+    0x05,   // PKTCTRL0  Packet automation control.
     0x00,   // ADDR      Device address.
-    0x05    // PKTLEN    Packet length.
+    0x78    // PKTLEN    Packet length.
 };
 
 #endif

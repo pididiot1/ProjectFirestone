@@ -1,5 +1,5 @@
 /******************************************************************************
-* CC430 RF Code Example - TX and RX (fixed packet length =< FIFO size)
+* CC430 RF Code Example - TX and RX (variable packet length =< FIFO size)
 *
 * Simple RF Link to Toggle Receiver's LED by pressing Transmitter's Button    
 * Warning: This RF code example is setup to operate at either 868 or 915 MHz, 
@@ -11,10 +11,10 @@
 * this code example. 
 * 
 * This code example can be loaded to 2 CC430 devices. Each device will transmit 
-* a small packet, less than the FIFO size, upon a button pressed. Each device will also toggle its LED 
+* a small packet upon a button pressed. Each device will also toggle its LED 
 * upon receiving the packet. 
 * 
-* The RF packet engine settings specify fixed-length-mode with CRC check 
+* The RF packet engine settings specify variable-length-mode with CRC check 
 * enabled. The RX packet also appends 2 status bytes regarding CRC check, RSSI 
 * and LQI info. For specific register settings please refer to the comments for 
 * each register in RfRegSettings.c, the CC430x513x User's Guide, and/or 
@@ -27,10 +27,21 @@
 ******************************************************************************/
 
 #include "RF_Toggle_LED_Demo.h"
+#include <string.h>
 
-#define  PACKET_LEN         (0x05)			// PACKET_LEN <= 61
-#define  RSSI_IDX           (PACKET_LEN)    // Index of appended RSSI 
-#define  CRC_LQI_IDX        (PACKET_LEN+1)  // Index of appended LQI, checksum
+// Receive parameters
+#define iHoldID 0
+#define iPowerState 1
+#define iStartOn 2
+#define iStartDelay 3
+#define iLitTime 4
+#define iRed 5
+#define iGreen 6
+#define iBlue 7
+
+#define  PACKET_LEN         (0x05)	    // PACKET_LEN <= 61
+#define  RSSI_IDX           (PACKET_LEN+1)  // Index of appended RSSI 
+#define  CRC_LQI_IDX        (PACKET_LEN+2)  // Index of appended LQI, checksum
 #define  CRC_OK             (BIT7)          // CRC_OK bit 
 #define  PATABLE_VAL        (0x51)          // 0 dBm output 
 
@@ -39,9 +50,9 @@ extern RF_SETTINGS rfSettings;
 unsigned char packetReceived;
 unsigned char packetTransmit; 
 
-unsigned char RxBuffer[PACKET_LEN+2];
+unsigned char RxBuffer[64];
 unsigned char RxBufferLength = 0;
-const unsigned char TxBuffer[PACKET_LEN]= {0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
+const unsigned char TxBuffer[6]= {PACKET_LEN, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE};
 unsigned char buttonPressed = 0;
 unsigned int i = 0; 
 
@@ -59,18 +70,18 @@ void main( void )
   ResetRadioCore();     
   InitRadio();
   InitButtonLeds();
-  
+    
   ReceiveOn(); 
   receiving = 1; 
     
   while (1)
   { 
-    __bis_SR_register( LPM3_bits + GIE );   
+    __bis_SR_register( LPM3_bits + GIE );
     __no_operation(); 
     
-    if (buttonPressed)                      // Process a button press->transmit 
+    if (buttonPressed)                      // Process a button press->transmit
     {
-      P3OUT |= BIT6;                        // Pulse LED during Transmit                          
+      P3OUT |= BIT1;                        // Pulse LED during Transmit
       buttonPressed = 0; 
       P1IFG = 0; 
       
@@ -104,10 +115,10 @@ void InitButtonLeds(void)
   PJDIR = 0xFF; 
 
   // Set up LEDs 
-  P1OUT &= ~BIT0;
-  P1DIR |= BIT0;
-  P3OUT &= ~BIT6;
-  P3DIR |= BIT6;
+  // Tri-color RGB in that order
+  P3OUT & ~(BIT1 | BIT2 | BIT3);
+  P3DIR |= (BIT1 | BIT2 | BIT3);
+
 }
 
 void InitRadio(void)
@@ -121,27 +132,6 @@ void InitRadio(void)
   WriteRfSettings(&rfSettings);
   
   WriteSinglePATable(PATABLE_VAL);
-}
-
-#pragma vector=PORT1_VECTOR
-__interrupt void PORT1_ISR(void)
-{
-  switch(__even_in_range(P1IV, 16))
-  {
-    case  0: break;
-    case  2: break;                         // P1.0 IFG
-    case  4: break;                         // P1.1 IFG
-    case  6: break;                         // P1.2 IFG
-    case  8: break;                         // P1.3 IFG
-    case 10: break;                         // P1.4 IFG
-    case 12: break;                         // P1.5 IFG
-    case 14: break;                         // P1.6 IFG
-    case 16:                                // P1.7 IFG
-      P1IE = 0;                             // Debounce by disabling buttons
-      buttonPressed = 1;
-      __bic_SR_register_on_exit(LPM3_bits); // Exit active    
-      break;
-  }
 }
 
 void Transmit(unsigned char *buffer, unsigned char length)
@@ -204,12 +194,14 @@ __interrupt void CC1101_ISR(void)
         
         // Check the CRC results
         if(RxBuffer[CRC_LQI_IDX] & CRC_OK)  
-          P1OUT ^= BIT0;                    // Toggle LED1      
+        	if(RxBuffer[1] == 0xAB) {
+        		  P3OUT ^= BIT2;                    // Toggle LED1
+        	}
       }
       else if(transmitting)		    // TX end of packet
       {
         RF1AIE &= ~BIT9;                    // Disable TX end-of-packet interrupt
-        P3OUT &= ~BIT6;                     // Turn off LED after Transmit               
+        P3OUT &= ~BIT1;                     // Turn off LED after Transmit
         transmitting = 0; 
       }
       else while(1); 			    // trap 
@@ -224,3 +216,23 @@ __interrupt void CC1101_ISR(void)
   __bic_SR_register_on_exit(LPM3_bits);     
 }
 
+#pragma vector=PORT1_VECTOR
+__interrupt void PORT1_ISR(void)
+{
+  switch(__even_in_range(P1IV, 16))
+  {
+    case  0: break;
+    case  2: break;                         // P1.0 IFG
+    case  4: break;                         // P1.1 IFG
+    case  6: break;                         // P1.2 IFG
+    case  8: break;                         // P1.3 IFG
+    case 10: break;                         // P1.4 IFG
+    case 12: break;                         // P1.5 IFG
+    case 14: break;                         // P1.6 IFG
+    case 16:                                // P1.7 IFG
+      P1IE = 0;                             // Debounce by disabling buttons
+      buttonPressed = 1;
+      __bic_SR_register_on_exit(LPM3_bits); // Exit active    
+      break;
+  }
+}
