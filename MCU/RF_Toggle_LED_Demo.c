@@ -73,6 +73,7 @@ typedef struct {
 currState_t currState;
 
 int pwmCount = 0;
+int pwmMax = 255;
 
 unsigned char transmitting = 0; 
 unsigned char receiving = 0; 
@@ -94,7 +95,7 @@ void main( void )
 
 	ReceiveOn();
 	receiving = 1;
-	const unsigned char myBuffer[9]= {0x09, 0x01, 0x02, 0x03, 0x04, 0x05, 0xFF, 0x00, 0xFF};
+	const unsigned char myBuffer[9]= {0x09, 0x01, 0x02, 0x03, 0x04, 0x05, 0x88, 0x00, 0x88};
 
 	while (1)
 	{
@@ -184,8 +185,8 @@ void InitRadio(void)
 
 void InitLEDTimer(void) {
 	TA1CCTL0 = CCIE;                          // CCR0 interrupt enabled
-	TA1CCR0 = 50000;
-	TA1CTL = TASSEL_2 + MC_2 + TACLR;         // SMCLK, contmode, clear TAR
+	TA1CCR0 = 500;
+	TA1CTL = TASSEL_2 + MC_1 + TACLR;         // SMCLK, contmode, clear TAR
 }
 
 void Transmit(unsigned char *buffer, unsigned char length)
@@ -277,8 +278,6 @@ __interrupt void CC1101_ISR(void)
 #pragma vector=TIMER1_A0_VECTOR
 __interrupt void TIMER1_A0_ISR(void)
 {
-
-
 	if(pwmCount < currState.red) {
 		P3OUT |= BIT1;
 	} else {
@@ -294,12 +293,23 @@ __interrupt void TIMER1_A0_ISR(void)
 	} else {
 		P3OUT &= ~BIT3;
 	}
-	pwmCount++;
+	pwmCount += 10;
 	// Reset pwmCount
-	if(pwmCount == 255) {
+	if(pwmCount >= pwmMax) {
 		pwmCount = 0;
+/*
+		// Re-evaluate max
+		if(currState.red > pwmMax) {
+			pwmMax = currState.red;
+		}
+		if(currState.green > pwmMax) {
+			pwmMax = currState.green;
+		}
+		if(currState.blue > pwmMax) {
+			pwmMax = currState.blue;
+		}
+*/
 	}
-	TA1CCR0 += 50000;                         // Add Offset to CCR0
 }
 
 #pragma vector=PORT1_VECTOR
