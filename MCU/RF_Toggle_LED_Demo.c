@@ -30,14 +30,14 @@
 
 
 // Receive parameters
-#define iHoldID 0
-#define iPowerState 1
-#define iStartOn 2
-#define iStartDelay 3
-#define iLitTime 4
-#define iRed 5
-#define iGreen 6
-#define iBlue 7
+#define iHoldID 1
+#define iPowerState 2
+#define iStartOn 3
+#define iStartDelay 4
+#define iLitTime 5
+#define iRed 6
+#define iGreen 7
+#define iBlue 8
 
 // My enums
 typedef enum {OFF, ACTIVE, TX} powerState_t;
@@ -72,12 +72,15 @@ typedef struct {
 
 currState_t currState;
 
+int pwmCount = 0;
+
 unsigned char transmitting = 0; 
 unsigned char receiving = 0; 
 unsigned char newData = 0;
 
 void main( void )
 {  
+
 	// Stop watchdog timer to prevent time out reset
 	WDTCTL = WDTPW + WDTHOLD;
 
@@ -87,10 +90,11 @@ void main( void )
 	ResetRadioCore();
 	InitRadio();
 	InitButtonLeds();
+	InitLEDTimer();
 
 	ReceiveOn();
 	receiving = 1;
-	const unsigned char myBuffer[9]= {0x09, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+	const unsigned char myBuffer[9]= {0x09, 0x01, 0x02, 0x03, 0x04, 0x05, 0xFF, 0x00, 0xFF};
 
 	while (1)
 	{
@@ -110,8 +114,7 @@ void main( void )
 			transmitting = 1;
 
 			P1IE |= BIT7;                         // Re-enable button press
-		} else if(!transmitting)
-		{
+		} else if(!transmitting) {
 			ReceiveOn();
 			receiving = 1;
 		}
@@ -131,33 +134,7 @@ void main( void )
 }
 
 void updateState(void) {
-	if(RxBuffer[0] == 0x09) {
-		__no_operation();
-	}
-	if(RxBuffer[1] == 0x01) {
-		__no_operation();
-	}
-	if(RxBuffer[2] == 0x02) {
-		__no_operation();
-	}
-	if(RxBuffer[3] == 0x03) {
-		__no_operation();
-	}
-	if(RxBuffer[4] == 0x04) {
-		__no_operation();
-	}
-	if(RxBuffer[5] == 0x05) {
-		__no_operation();
-	}
-	if(RxBuffer[6] == 0x06) {
-		__no_operation();
-	}
-	if(RxBuffer[7] == 0x07) {
-		__no_operation();
-	}
-	if(RxBuffer[8] == 0x08) {
-		__no_operation();
-	}
+
 	currState.holdID = RxBuffer[iHoldID];
 	currState.powerState = RxBuffer[iPowerState];
 	currState.startOn = RxBuffer[iStartOn];
@@ -186,6 +163,9 @@ void InitButtonLeds(void)
 	// Tri-color RGB in that order
 	P3OUT & ~(BIT1 | BIT2 | BIT3);
 	P3DIR |= (BIT1 | BIT2 | BIT3);
+	currState.red = 0;
+	currState.green = 0;
+	currState.blue = 0;
 
 }
 
@@ -200,6 +180,12 @@ void InitRadio(void)
 	WriteRfSettings(&rfSettings);
 
 	WriteSinglePATable(PATABLE_VAL);
+}
+
+void InitLEDTimer(void) {
+	TA1CCTL0 = CCIE;                          // CCR0 interrupt enabled
+	TA1CCR0 = 50000;
+	TA1CTL = TASSEL_2 + MC_2 + TACLR;         // SMCLK, contmode, clear TAR
 }
 
 void Transmit(unsigned char *buffer, unsigned char length)
@@ -262,7 +248,7 @@ __interrupt void CC1101_ISR(void)
 
 			// Check the CRC results
 			if(RxBuffer[CRC_LQI_IDX] & CRC_OK) {
-				P3OUT ^= BIT2;                    // Toggle LED1
+				//				P3OUT ^= BIT2;                    // Toggle LED1
 				newData = 1;
 
 			} else {
@@ -285,6 +271,35 @@ __interrupt void CC1101_ISR(void)
 	case 32: break;                         // RFIFG15
 	}
 	__bic_SR_register_on_exit(LPM3_bits);
+}
+
+// Timer A0 interrupt service routine
+#pragma vector=TIMER1_A0_VECTOR
+__interrupt void TIMER1_A0_ISR(void)
+{
+
+
+	if(pwmCount < currState.red) {
+		P3OUT |= BIT1;
+	} else {
+		P3OUT &= ~BIT1;
+	}
+	if(pwmCount < currState.green) {
+		P3OUT |= BIT2;
+	} else {
+		P3OUT &= ~BIT2;
+	}
+	if(pwmCount < currState.blue) {
+		P3OUT |= BIT3;
+	} else {
+		P3OUT &= ~BIT3;
+	}
+	pwmCount++;
+	// Reset pwmCount
+	if(pwmCount == 255) {
+		pwmCount = 0;
+	}
+	TA1CCR0 += 50000;                         // Add Offset to CCR0
 }
 
 #pragma vector=PORT1_VECTOR

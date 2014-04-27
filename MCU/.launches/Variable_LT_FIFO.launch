@@ -5,7 +5,7 @@
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_PROGRAM.TI MSP430 USB1/MSP430" value="${build_artifact:Variable_LT_FIFO}"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_PROJECT.TI MSP430 USB1/MSP430" value="Variable_LT_FIFO"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_TARGET_CONFIG" value="${target_config_active_default:Variable_LT_FIFO}"/>
-<stringAttribute key="com.ti.ccstudio.debug.debugModel.MRU_PROGRAM.TI MSP430 USB1/MSP430" value="C:/Texas Instruments\SLAA465 - CC430 RF Examples\CC430x513x RF examples\RF_Examples_CCS\Variable_LT_FIFO\MHZ_868\Variable_LT_FIFO.out"/>
+<stringAttribute key="com.ti.ccstudio.debug.debugModel.MRU_PROGRAM.TI MSP430 USB1/MSP430" value="C:/Users\Adam\Documents\GitHub\ProjectFirestone\MCU\MHZ_868\Variable_LT_FIFO.out"/>
 <listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_PATHS">
 <listEntry value="/Variable_LT_FIFO"/>
 </listAttribute>

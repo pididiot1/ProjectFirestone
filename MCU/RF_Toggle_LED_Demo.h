@@ -13,5 +13,6 @@ void ReceiveOff(void);
 
 void InitButtonLeds(void);
 void InitRadio(void);
+void InitLEDTimer(void);
 
 void updateState(void);
