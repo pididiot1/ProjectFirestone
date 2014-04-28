@@ -28,6 +28,8 @@
 
 #include "RF_Toggle_LED_Demo.h"
 
+/***************** RADIO GLOBALS *********************************************/
+
 #define  PACKET_LEN         (0x05)	    // PACKET_LEN <= 61
 #define  RSSI_IDX           (PACKET_LEN+1)  // Index of appended RSSI 
 #define  CRC_LQI_IDX        (PACKET_LEN+2)  // Index of appended LQI, checksum
@@ -47,6 +49,50 @@ unsigned int i = 0;
 
 unsigned char transmitting = 0; 
 unsigned char receiving = 0; 
+
+/****************** END RADIO GLOBALS ******************************************/
+
+/******************* MY RADIO GLOBALS ************************************************/
+
+#define	 MY_PACKET_LEN 		(0x08)
+#define  MY_RSSI_IDX        (MY_PACKET_LEN+1)  // Index of appended RSSI
+#define  MY_CRC_LQI_IDX     (MY_PACKET_LEN+2)  // Index of appended LQI, checksum
+#define  MY_CRC_OK          (BIT7)          // CRC_OK bit
+#define  MY_PATABLE_VAL     (0x51)          // 0 dBm output
+
+unsigned char myBuffer[9] = {MY_PACKET_LEN, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+
+/******************* END MY RADIO GLOBALS ********************************************/
+
+/******************* MY PARAM GLOBALS ****************************************************/
+
+// Receive parameters
+#define iHoldID		1
+#define iPowerState 2
+#define iStartOn	3
+#define iStartDelay	4
+#define iLitTime	5
+#define iRed		6
+#define iGreen		7
+#define iBlue		8
+
+typedef enum {OFF, ACTIVE, TX} powerState_t;
+
+typedef struct {
+	int holdID;
+	powerState_t powerState;
+	unsigned char startOn;
+	int startDelay;
+	int litTime;
+	int red;
+	int green;
+	int blue;
+} currState_t;
+
+volatile currState_t currState;
+volatile unsigned char newState = 0;
+
+/******************* END MY PARAM GLOBALS ************************************************/
 
 void main( void )
 {  
@@ -76,7 +122,7 @@ void main( void )
       
       ReceiveOff();
       receiving = 0; 
-      Transmit( (unsigned char*)TxBuffer, sizeof TxBuffer);         
+      Transmit( (unsigned char*)myBuffer, sizeof myBuffer);
       transmitting = 1;
        
       P1IE |= BIT7;                         // Re-enable button press  
@@ -86,6 +132,21 @@ void main( void )
       ReceiveOn();      
       receiving = 1; 
     }
+
+    if(newState) {
+    	newState = 0;
+    	// Turn receiving off to grab data
+    	ReceiveOff();
+    	receiving = 0;
+
+    	// Update current state from RxBuffer
+    	updateState();
+    	__no_operation();
+    	// Turn receiving back on again
+    	ReceiveOn();
+    	receiving = 1;
+    }
+
   }
 }
 
@@ -103,11 +164,13 @@ void InitButtonLeds(void)
   PJOUT = 0x00;
   PJDIR = 0xFF; 
 
-  // Set up LEDs 
+  // Set up LED
   P3OUT &= ~BIT1;
   P3DIR |= BIT1;
   P3OUT &= ~BIT2;
   P3DIR |= BIT2;
+  P3OUT &= ~BIT3;
+  P3DIR |= BIT3;
 }
 
 void InitRadio(void)
@@ -121,6 +184,17 @@ void InitRadio(void)
   WriteRfSettings(&rfSettings);
   
   WriteSinglePATable(PATABLE_VAL);
+}
+
+void updateState(void) {
+	currState.holdID = RxBuffer[iHoldID];
+	currState.powerState = RxBuffer[iPowerState];
+	currState.startOn = RxBuffer[iStartOn];
+	currState.startDelay = RxBuffer[iStartDelay];
+	currState.litTime = RxBuffer[iLitTime];
+	currState.red = RxBuffer[iRed];
+	currState.green = RxBuffer[iGreen];
+	currState.blue = RxBuffer[iBlue];
 }
 
 void Transmit(unsigned char *buffer, unsigned char length)
@@ -182,8 +256,9 @@ __interrupt void CC1101_ISR(void)
         __no_operation(); 		   
         
         // Check the CRC results
-        if(RxBuffer[CRC_LQI_IDX] & CRC_OK)  
+        if(RxBuffer[MY_CRC_LQI_IDX] & MY_CRC_OK)
           P3OUT ^= BIT2;                    // Toggle LED1
+          newState = 1;
       }
       else if(transmitting)		    // TX end of packet
       {
