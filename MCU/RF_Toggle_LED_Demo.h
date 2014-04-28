@@ -12,5 +12,7 @@ void ReceiveOff(void);
 void InitButtonLeds(void);
 void InitRadio(void);
 void InitLEDTimer(void);
+void InitUART(void);
 
 void updateState(void);
+void updateStateUart(void);

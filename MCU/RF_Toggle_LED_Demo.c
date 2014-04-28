@@ -34,7 +34,7 @@
 #define  RSSI_IDX           (PACKET_LEN+1)  // Index of appended RSSI 
 #define  CRC_LQI_IDX        (PACKET_LEN+2)  // Index of appended LQI, checksum
 #define  CRC_OK             (BIT7)          // CRC_OK bit 
-#define  PATABLE_VAL        (0x51)          // 0 dBm output 
+#define  PATABLE_VAL        (0xC0)          // 0 dBm output
 
 extern RF_SETTINGS rfSettings;
 
@@ -94,9 +94,14 @@ volatile unsigned char newState = 0;
 
 /******************* END MY PARAM GLOBALS ************************************************/
 
-volatile unsigned char redOn = 0;
-volatile unsigned char greenOn = 0;
-volatile unsigned char blueOn = 0;
+/******************* MY UART GLOBALS ************************************************/
+
+unsigned char uartBuffer[MY_PACKET_LEN];
+int uartBufferIndex = 1;
+volatile unsigned char uartReady = 0;
+
+/******************* END MY UART GLOBALS ********************************************/
+
 
 void main( void )
 {  
@@ -110,6 +115,7 @@ void main( void )
 	InitRadio();
 	InitButtonLeds();
 	InitLEDTimer();
+	InitUART();
 
 	ReceiveOn();
 	receiving = 1;
@@ -121,7 +127,7 @@ void main( void )
 
 		if (buttonPressed)                      // Process a button press->transmit
 		{
-//			P3OUT |= BIT1;                        // Pulse LED during Transmit
+			//			P3OUT |= BIT1;                        // Pulse LED during Transmit
 			buttonPressed = 0;
 			P1IFG = 0;
 
@@ -131,12 +137,11 @@ void main( void )
 			transmitting = 1;
 
 			P1IE |= BIT7;                         // Re-enable button press
-		}
-		else if(!transmitting)
-		{
+		} else if(!transmitting) {
 			ReceiveOn();
 			receiving = 1;
 		}
+
 
 		if(newState) {
 			newState = 0;
@@ -147,23 +152,51 @@ void main( void )
 			// Update current state from RxBuffer
 			updateState();
 			__no_operation();
-			// Turn receiving back on again
+
+			ReceiveOn();
+			receiving = 1;
+		} else if(uartReady) {
+			uartReady = 0;
+			for(i = 1; i < 9; i++) {
+				if(uartBuffer[i] == 0xFF) {
+					uartBuffer[i] = 0x00;
+				}
+			}
+
+			updateStateUart();
+
+			ReceiveOff();
+			receiving = 0;
+			uartBuffer[0] = MY_PACKET_LEN;
+			Transmit( (unsigned char*)uartBuffer, sizeof uartBuffer);
+			transmitting = 1;
+		}
+
+		/*
+		if(!receiving && !transmitting && !buttonPressed)
+		{
 			ReceiveOn();
 			receiving = 1;
 		}
-
+		 */
 	}
 }
 
 void InitButtonLeds(void)
 {
 	// Set up the button as interruptible
+	/*
 	P1DIR &= ~BIT7;
 	P1REN |= BIT7;
 	P1IES &= BIT7;
 	P1IFG = 0;
 	P1OUT |= BIT7;
 	P1IE  |= BIT7;
+	*/
+	P1DIR &= ~BIT7;
+	P1OUT &= ~BIT7;
+	P1DIR &= ~BIT4;
+	P1OUT &= ~BIT4;
 
 	// Initialize Port J
 	PJOUT = 0x00;
@@ -171,15 +204,15 @@ void InitButtonLeds(void)
 
 	// Set up LED
 	P3DIR |= BIT1 + BIT2 + BIT3;                     // P2.0 and P2.2 output
-	  P3SEL |= BIT1 + BIT2 + BIT3;                     // P2.0 and P2.2 options select
-	  /*
+	P3SEL |= BIT1 + BIT2 + BIT3;                     // P2.0 and P2.2 options select
+	/*
 	P3OUT &= ~BIT1;
 	P3DIR |= BIT1;
 	P3OUT &= ~BIT2;
 	P3DIR |= BIT2;
 	P3OUT &= ~BIT3;
 	P3DIR |= BIT3;
-	*/
+	 */
 }
 
 void InitRadio(void)
@@ -205,12 +238,31 @@ void InitLEDTimer(void) {
 
 	TA0CCR0 = 256-1;                          // PWM Period
 	TA0CCTL1 = OUTMOD_7;                      // CCR1 reset/set
-	TA0CCR1 = 255;                            // CCR1 PWM duty cycle
+	TA0CCR1 = 0;                            // CCR1 PWM duty cycle
 	TA0CCTL2 = OUTMOD_7;                      // CCR2 reset/set
 	TA0CCR2 = 0;                            // CCR2 PWM duty cycle
 	TA0CCTL3 = OUTMOD_7;
 	TA0CCR3 = 0;
 	TA0CTL = TASSEL_2 + MC_1 + TACLR;         // SMCLK, up mode, clear TAR
+}
+
+void InitUART(void) {
+	PMAPPWD = 0x02D52;                        // Get write-access to port mapping regs
+	P1MAP5 = PM_UCA0RXD;                      // Map UCA0RXD output to P1.5
+	P1MAP6 = PM_UCA0TXD;                      // Map UCA0TXD output to P1.6
+	PMAPPWD = 0;                              // Lock port mapping registers
+
+	P1DIR |= BIT6;                            // Set P1.6 as TX output
+	P1SEL |= BIT5 + BIT6;                     // Select P1.5 & P1.6 to UART function
+
+	UCA0CTL1 |= UCSWRST;                      // **Put state machine in reset**
+	UCA0CTL1 |= UCSSEL_2;                     // SMCLK
+	UCA0BR0 = 6;                              // 1MHz 9600 (see User's Guide)
+	UCA0BR1 = 0;                              // 1MHz 9600
+	UCA0MCTL = UCBRS_0 + UCBRF_13 + UCOS16;   // Modln UCBRSx=0, UCBRFx=0,
+	// over sampling
+	UCA0CTL1 &= ~UCSWRST;                     // **Initialize USCI state machine**
+	UCA0IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
 }
 
 void updateState(void) {
@@ -222,6 +274,21 @@ void updateState(void) {
 	currState.red = RxBuffer[iRed];
 	currState.green = RxBuffer[iGreen];
 	currState.blue = RxBuffer[iBlue];
+
+	TA0CCR1 = currState.red;
+	TA0CCR2 = currState.green;
+	TA0CCR3 = currState.blue;
+}
+
+void updateStateUart(void) {
+	currState.holdID = uartBuffer[iHoldID];
+	currState.powerState = uartBuffer[iPowerState];
+	currState.startOn = uartBuffer[iStartOn];
+	currState.startDelay = uartBuffer[iStartDelay];
+	currState.litTime = uartBuffer[iLitTime];
+	currState.red = uartBuffer[iRed];
+	currState.green = uartBuffer[iGreen];
+	currState.blue = uartBuffer[iBlue];
 
 	TA0CCR1 = currState.red;
 	TA0CCR2 = currState.green;
@@ -287,15 +354,15 @@ __interrupt void CC1101_ISR(void)
 			__no_operation();
 
 			// Check the CRC results
-			if(RxBuffer[MY_CRC_LQI_IDX] & MY_CRC_OK) {
-//				P3OUT ^= BIT2;                    // Toggle LED1
+//			if(RxBuffer[MY_CRC_LQI_IDX] & MY_CRC_OK) {
+				//				P3OUT ^= BIT2;                    // Toggle LED1
 				newState = 1;
-			}
+//			}
 		}
 		else if(transmitting)		    // TX end of packet
 		{
 			RF1AIE &= ~BIT9;                    // Disable TX end-of-packet interrupt
-//			P3OUT &= ~BIT1;                     // Turn off LED after Transmit
+			//			P3OUT &= ~BIT1;                     // Turn off LED after Transmit
 			transmitting = 0;
 		}
 		else while(1); 			    // trap
@@ -308,6 +375,33 @@ __interrupt void CC1101_ISR(void)
 	case 32: break;                         // RFIFG15
 	}
 	__bic_SR_register_on_exit(LPM3_bits);
+}
+
+// Echo back RXed character, confirm TX buffer is ready first
+#pragma vector=USCI_A0_VECTOR
+__interrupt void USCI_A0_ISR(void)
+{
+	switch(__even_in_range(UCA0IV,4))
+	{
+	case 0:break;                             // Vector 0 - no interrupt
+	case 2:                                   // Vector 2 - RXIFG
+		if(UCA0RXBUF != 0x0D) {
+			uartBuffer[uartBufferIndex] = UCA0RXBUF;
+			uartBufferIndex++;
+			if(uartBufferIndex >= MY_PACKET_LEN) {
+				uartBufferIndex = 1;
+			}
+		} else {
+			uartBufferIndex = 1;
+			uartReady = 1;
+			__bic_SR_register_on_exit(LPM3_bits); // Exit active
+		}
+		while (!(UCA0IFG&UCTXIFG));             // USCI_A0 TX buffer ready?
+		UCA0TXBUF = UCA0RXBUF;                  // TX -> RXed character
+		break;
+	case 4:break;                             // Vector 4 - TXIFG
+	default: break;
+	}
 }
 
 
