@@ -60,7 +60,7 @@ unsigned char receiving = 0;
 #define  MY_CRC_OK          (BIT7)          // CRC_OK bit
 #define  MY_PATABLE_VAL     (0x51)          // 0 dBm output
 
-unsigned char myBuffer[9] = {MY_PACKET_LEN, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+unsigned char myBuffer[9] = {MY_PACKET_LEN, 0x01, 0x02, 0x03, 0x04, 0x05, 0x99, 0xFF, 0x00};
 
 /******************* END MY RADIO GLOBALS ********************************************/
 
@@ -121,7 +121,7 @@ void main( void )
 
 		if (buttonPressed)                      // Process a button press->transmit
 		{
-			P3OUT |= BIT1;                        // Pulse LED during Transmit
+//			P3OUT |= BIT1;                        // Pulse LED during Transmit
 			buttonPressed = 0;
 			P1IFG = 0;
 
@@ -170,12 +170,16 @@ void InitButtonLeds(void)
 	PJDIR = 0xFF;
 
 	// Set up LED
+	P3DIR |= BIT1 + BIT2 + BIT3;                     // P2.0 and P2.2 output
+	  P3SEL |= BIT1 + BIT2 + BIT3;                     // P2.0 and P2.2 options select
+	  /*
 	P3OUT &= ~BIT1;
 	P3DIR |= BIT1;
 	P3OUT &= ~BIT2;
 	P3DIR |= BIT2;
 	P3OUT &= ~BIT3;
 	P3DIR |= BIT3;
+	*/
 }
 
 void InitRadio(void)
@@ -193,18 +197,20 @@ void InitRadio(void)
 
 void InitLEDTimer(void) {
 
-	TA1CCTL0 = OUTMOD_4 + CCIE; // CCR0 toggle, interrupt enabled
-	TA1CCTL1 = OUTMOD_4 + CCIE; // CCR1 toggle, interrupt enabled
-	TA1CCTL2 = OUTMOD_4 + CCIE; // CCR2 toggle, interrupt enabled
-	TA1CTL = TASSEL_2 + MC_2 + TAIE; // SMCLK, Contmode, int enabled
-	/*
-	TA1CCTL0 = CCIE;                          // CCR0 interrupt enabled
-	TA1CCR0 = 50000;
-	TA1CCTL1 = CCIE;
-	TA1CCR1 = 50000;
+	PMAPPWD = 0x02D52;                        // Get write-access to port mapping regs
+	P3MAP1 = PM_TA0CCR1A;                     // Map TA1CCR1 output to P3.0
+	P3MAP2 = PM_TA0CCR2A;                     // Map TA1CCR2 output to P3.1
+	P3MAP3 = PM_TA0CCR3A;                     // Map TA1CCR3 output to P3.3
+	PMAPPWD = 0;                              // Lock port mapping registers
 
-	TA1CTL = TASSEL_2 + MC_2 + TACLR;         // SMCLK, contmode, clear TAR
-	 */
+	TA0CCR0 = 256-1;                          // PWM Period
+	TA0CCTL1 = OUTMOD_7;                      // CCR1 reset/set
+	TA0CCR1 = 255;                            // CCR1 PWM duty cycle
+	TA0CCTL2 = OUTMOD_7;                      // CCR2 reset/set
+	TA0CCR2 = 0;                            // CCR2 PWM duty cycle
+	TA0CCTL3 = OUTMOD_7;
+	TA0CCR3 = 0;
+	TA0CTL = TASSEL_2 + MC_1 + TACLR;         // SMCLK, up mode, clear TAR
 }
 
 void updateState(void) {
@@ -216,6 +222,10 @@ void updateState(void) {
 	currState.red = RxBuffer[iRed];
 	currState.green = RxBuffer[iGreen];
 	currState.blue = RxBuffer[iBlue];
+
+	TA0CCR1 = currState.red;
+	TA0CCR2 = currState.green;
+	TA0CCR3 = currState.blue;
 }
 
 void Transmit(unsigned char *buffer, unsigned char length)
@@ -278,14 +288,14 @@ __interrupt void CC1101_ISR(void)
 
 			// Check the CRC results
 			if(RxBuffer[MY_CRC_LQI_IDX] & MY_CRC_OK) {
-				P3OUT ^= BIT2;                    // Toggle LED1
+//				P3OUT ^= BIT2;                    // Toggle LED1
 				newState = 1;
 			}
 		}
 		else if(transmitting)		    // TX end of packet
 		{
 			RF1AIE &= ~BIT9;                    // Disable TX end-of-packet interrupt
-			P3OUT &= ~BIT1;                     // Turn off LED after Transmit
+//			P3OUT &= ~BIT1;                     // Turn off LED after Transmit
 			transmitting = 0;
 		}
 		else while(1); 			    // trap
@@ -298,71 +308,6 @@ __interrupt void CC1101_ISR(void)
 	case 32: break;                         // RFIFG15
 	}
 	__bic_SR_register_on_exit(LPM3_bits);
-}
-
-// Red interrupt service routine
-#pragma vector=TIMER1_A0_VECTOR
-__interrupt void TIMER1_A0_ISR(void)
-{
-	if(!redOn) // If output currently high
-	{
-		TA1CCR0 += (255 - currState.red); // 25% high
-		P3OUT |= BIT1;
-		redOn = 1;
-	}
-	else
-	{
-		TA1CCR0 += (currState.red + 1); // 75% low
-		P3OUT &= ~BIT1;
-		redOn = 0;
-	}
-
-	/*
-	P3OUT ^= BIT1;                            // Toggle P1.0
-	TA1CCR0 += 50000;                         // Add Offset to CCR0
-	 */
-}
-// Green interrupt service routine
-#pragma vector=TIMER1_A1_VECTOR
-__interrupt void TIMER1_A1_ISR(void)
-{
-	switch( TA1IV )
-	{
-	case 2: if(!greenOn) // If output currently high
-	{
-		TA1CCR1 += (255-currState.green); // 12.5% high
-		P3OUT |= BIT2;
-		greenOn = 1;
-	}
-	else
-	{
-		TA1CCR1 += (currState.green + 1); // 87.5% low
-		P3OUT &= ~BIT2;
-		greenOn = 0;
-	}
-	break;
-	case 4: if(!blueOn) // If output currently high
-	{
-		TA1CCR2 += (255-currState.blue); // 60% high
-		P3OUT |= BIT3;
-		blueOn = 1;
-	}
-	else
-	{
-		TA1CCR2 += (currState.blue + 1); // 40% low
-		P3OUT &= ~BIT3;
-		blueOn = 0;
-	}
-	break;
-	case 10: P1OUT ^= 0x01; // Timer overflow
-	break;
-	default: break;
-	}
-
-	/*
-	P3OUT ^= BIT2;                            // Toggle P1.0
-	TA1CCR1 += 50000;                         // Add Offset to CCR0
-	 */
 }
 
 
