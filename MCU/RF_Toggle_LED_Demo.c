@@ -76,6 +76,8 @@ unsigned char myBuffer[9] = {MY_PACKET_LEN, 0x01, 0x02, 0x03, 0x04, 0x05, 0x99, 
 #define iGreen		7
 #define iBlue		8
 
+
+
 typedef enum {OFF, ACTIVE, TX} powerState_t;
 
 typedef struct {
@@ -96,11 +98,18 @@ volatile unsigned char newState = 0;
 
 /******************* MY UART GLOBALS ************************************************/
 
-unsigned char uartBuffer[MY_PACKET_LEN];
+unsigned char uartBuffer[MY_PACKET_LEN+1];
 int uartBufferIndex = 1;
 volatile unsigned char uartReady = 0;
 
 /******************* END MY UART GLOBALS ********************************************/
+
+/******************** HOLD IDENTIFIERS **********************************************/
+
+#define myID		0x10
+#define uart		1
+
+/******************** END HOLD IDENTIFIERS ******************************************/
 
 
 void main( void )
@@ -115,7 +124,9 @@ void main( void )
 	InitRadio();
 	InitButtonLeds();
 	InitLEDTimer();
-	InitUART();
+	if(uart) {
+		InitUART();
+	}
 
 	ReceiveOn();
 	receiving = 1;
@@ -192,7 +203,7 @@ void InitButtonLeds(void)
 	P1IFG = 0;
 	P1OUT |= BIT7;
 	P1IE  |= BIT7;
-	*/
+	 */
 	P1DIR &= ~BIT7;
 	P1OUT &= ~BIT7;
 	P1DIR &= ~BIT4;
@@ -354,10 +365,12 @@ __interrupt void CC1101_ISR(void)
 			__no_operation();
 
 			// Check the CRC results
-//			if(RxBuffer[MY_CRC_LQI_IDX] & MY_CRC_OK) {
-				//				P3OUT ^= BIT2;                    // Toggle LED1
+			//			if(RxBuffer[MY_CRC_LQI_IDX] & MY_CRC_OK) {
+			//				P3OUT ^= BIT2;                    // Toggle LED1
+			if(RxBuffer[iHoldID] == myID) {
 				newState = 1;
-//			}
+			}
+			//			}
 		}
 		else if(transmitting)		    // TX end of packet
 		{
