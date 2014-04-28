@@ -1,8 +1,6 @@
 #include "cc430x513x.h"
 #include "RF1A.h"
 #include "hal_pmm.h"
-#include <string.h>
-#include <stdlib.h>
 
 /*******************
  * Function Definition
@@ -13,6 +11,3 @@ void ReceiveOff(void);
 
 void InitButtonLeds(void);
 void InitRadio(void);
-void InitLEDTimer(void);
-
-void updateState(void);
