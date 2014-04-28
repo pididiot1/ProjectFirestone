@@ -12,7 +12,7 @@ $(GEN_CMDS__FLAG) \
 "./HAL/RfRegSettings.obj" \
 "./HAL/RF1A.obj" \
 "./RF_Toggle_LED_Demo.obj" \
-"../lnk_cc430f5135.cmd" \
+"../lnk_cc430f5133.cmd" \
 -l"libmath.a" \
 -l"libc.a" \
 
@@ -121,7 +121,7 @@ all: Variable_LT_FIFO.out
 Variable_LT_FIFO.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: MSP430 Linker'
-	"C:/ti/ccsv5/tools/compiler/msp430_4.2.1/bin/cl430" -vmspx --abi=eabi -g --define=MHZ_868 --define=__CC430F5135__ --diag_warning=225 --silicon_errata=CPU18 --silicon_errata=CPU21 --silicon_errata=CPU22 --silicon_errata=CPU23 --silicon_errata=CPU40 --printf_support=minimal -z -m"Variable_LT_FIFO.map" --heap_size=80 --stack_size=80 --use_hw_mpy=F5 -i"C:/ti/ccsv5/ccs_base/msp430/include" -i"C:/ti/ccsv5/tools/compiler/msp430_4.2.1/lib" -i"C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include" -i"C:/ti/ccsv5/ccs_base/msp430/lib" --reread_libs --warn_sections --xml_link_info="Variable_LT_FIFO_linkInfo.xml" --rom_model -o "Variable_LT_FIFO.out" $(ORDERED_OBJS)
+	"C:/ti/ccsv5/tools/compiler/msp430_4.2.1/bin/cl430" -vmspx --abi=eabi -g --define=MHZ_868 --define=__CC430F5133__ --diag_warning=225 --silicon_errata=CPU18 --silicon_errata=CPU21 --silicon_errata=CPU22 --silicon_errata=CPU23 --silicon_errata=CPU40 --printf_support=minimal -z -m"Variable_LT_FIFO.map" --heap_size=80 --stack_size=80 --use_hw_mpy=F5 -i"C:/ti/ccsv5/ccs_base/msp430/include" -i"C:/ti/ccsv5/tools/compiler/msp430_4.2.1/lib" -i"C:/ti/ccsv5/tools/compiler/msp430_4.2.1/include" -i"C:/ti/ccsv5/ccs_base/msp430/lib" --reread_libs --warn_sections --xml_link_info="Variable_LT_FIFO_linkInfo.xml" --rom_model -o "Variable_LT_FIFO.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
