@@ -96,11 +96,13 @@ volatile unsigned char newState = 0;
 
 /******************* MY UART GLOBALS ************************************************/
 
-unsigned char uartBuffer[MY_PACKET_LEN];
+unsigned char uartBuffer[MY_PACKET_LEN+1];
 int uartBufferIndex = 1;
 volatile unsigned char uartReady = 0;
 
 /******************* END MY UART GLOBALS ********************************************/
+
+#define myID	0x03
 
 
 void main( void )
@@ -162,6 +164,9 @@ void main( void )
 					uartBuffer[i] = 0x00;
 				}
 			}
+			if(uartBuffer[iHoldID] != 0x00) {
+				__no_operation();
+			}
 
 			updateStateUart();
 
@@ -192,7 +197,7 @@ void InitButtonLeds(void)
 	P1IFG = 0;
 	P1OUT |= BIT7;
 	P1IE  |= BIT7;
-	*/
+	 */
 	P1DIR &= ~BIT7;
 	P1OUT &= ~BIT7;
 	P1DIR &= ~BIT4;
@@ -354,10 +359,20 @@ __interrupt void CC1101_ISR(void)
 			__no_operation();
 
 			// Check the CRC results
-//			if(RxBuffer[MY_CRC_LQI_IDX] & MY_CRC_OK) {
-				//				P3OUT ^= BIT2;                    // Toggle LED1
+			//			if(RxBuffer[MY_CRC_LQI_IDX] & MY_CRC_OK) {
+			//				P3OUT ^= BIT2;                    // Toggle LED1
+			if(RxBuffer[iHoldID] == myID) {
 				newState = 1;
-//			}
+			}
+			else
+			{
+				char actualValue = 0xFF;
+				actualValue =RxBuffer[iHoldID];
+				if(actualValue == 0xFF)
+					__no_operation();
+				__no_operation();
+			}
+			//			}
 		}
 		else if(transmitting)		    // TX end of packet
 		{
@@ -388,7 +403,7 @@ __interrupt void USCI_A0_ISR(void)
 		if(UCA0RXBUF != 0x0D) {
 			uartBuffer[uartBufferIndex] = UCA0RXBUF;
 			uartBufferIndex++;
-			if(uartBufferIndex >= MY_PACKET_LEN) {
+			if(uartBufferIndex > MY_PACKET_LEN+1) {
 				uartBufferIndex = 1;
 			}
 		} else {

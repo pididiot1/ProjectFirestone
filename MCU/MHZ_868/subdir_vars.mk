@@ -4,7 +4,7 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 CMD_SRCS += \
-../lnk_cc430f5135.cmd 
+../lnk_cc430f5137.cmd 
 
 C_SRCS += \
 ../RF_Toggle_LED_Demo.c 
