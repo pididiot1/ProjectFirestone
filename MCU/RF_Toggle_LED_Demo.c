@@ -102,6 +102,21 @@ volatile unsigned char uartReady = 0;
 
 /******************* END MY UART GLOBALS ********************************************/
 
+/******************* MY PIEZO GLOBALS ************************************************/
+
+#define   Num_of_Results   100
+volatile unsigned int piezoResults[Num_of_Results];
+
+/******************* END MY PIEZO GLOBALS ********************************************/
+
+/******************* HOLD IDENTIFIERS ***********************************************/
+
+#define myID 	0x01
+#define UART	1
+#define PIEZO	1
+
+/******************* END HOLD IDENTIFIERS *******************************************/
+
 #define myID	0x01
 
 
@@ -118,6 +133,7 @@ void main( void )
 	InitButtonLeds();
 	InitLEDTimer();
 	InitUART();
+	InitPiezo();
 
 	ReceiveOn();
 	receiving = 1;
@@ -270,6 +286,19 @@ void InitUART(void) {
 	UCA0IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
 }
 
+void InitPiezo(void) {
+
+	P2SEL |= 0x01;                            // Enable A/D channel A0
+
+	/* Initialize ADC12_A */
+	ADC12CTL0 = ADC12ON+ADC12SHT0_8+ADC12MSC; // Turn on ADC12, set sampling time
+	// set multiple sample conversion
+	ADC12CTL1 = ADC12SHP+ADC12CONSEQ_2;       // Use sampling timer, set mode
+	ADC12IE = 0x01;                           // Enable ADC12IFG.0
+	ADC12CTL0 |= ADC12ENC;                    // Enable conversions
+	ADC12CTL0 |= ADC12SC;                     // Start conversion
+}
+
 void updateState(void) {
 	currState.holdID = RxBuffer[iHoldID];
 	currState.powerState = RxBuffer[iPowerState];
@@ -418,6 +447,45 @@ __interrupt void USCI_A0_ISR(void)
 	default: break;
 	}
 }
+
+#pragma vector=ADC12_VECTOR
+__interrupt void ADC12ISR (void)
+{
+	static unsigned char index = 0;
+
+	switch(__even_in_range(ADC12IV,34))
+	{
+	case  0: break;                           // Vector  0:  No interrupt
+	case  2: break;                           // Vector  2:  ADC overflow
+	case  4: break;                           // Vector  4:  ADC timing overflow
+	case  6:                                  // Vector  6:  ADC12IFG0
+		piezoResults[index] = ADC12MEM0;             // Move results
+		if(piezoResults[index] < 1000) {
+			__no_operation();
+		}
+		index++;                                // Increment results index, modulo; Set Breakpoint1 here
+
+		if (index == Num_of_Results)
+			index = 0;                            // Reset the index; Set Breakpoint here
+
+	case  8: break;                           // Vector  8:  ADC12IFG1
+	case 10: break;                           // Vector 10:  ADC12IFG2
+	case 12: break;                           // Vector 12:  ADC12IFG3
+	case 14: break;                           // Vector 14:  ADC12IFG4
+	case 16: break;                           // Vector 16:  ADC12IFG5
+	case 18: break;                           // Vector 18:  ADC12IFG6
+	case 20: break;                           // Vector 20:  ADC12IFG7
+	case 22: break;                           // Vector 22:  ADC12IFG8
+	case 24: break;                           // Vector 24:  ADC12IFG9
+	case 26: break;                           // Vector 26:  ADC12IFG10
+	case 28: break;                           // Vector 28:  ADC12IFG11
+	case 30: break;                           // Vector 30:  ADC12IFG12
+	case 32: break;                           // Vector 32:  ADC12IFG13
+	case 34: break;                           // Vector 34:  ADC12IFG14
+	default: break;
+	}
+}
+
 
 
 #pragma vector=PORT1_VECTOR
