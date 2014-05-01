@@ -102,7 +102,7 @@ volatile unsigned char uartReady = 0;
 
 /******************* END MY UART GLOBALS ********************************************/
 
-#define myID	0x03
+#define myID	0x01
 
 
 void main( void )
@@ -243,7 +243,7 @@ void InitLEDTimer(void) {
 
 	TA0CCR0 = 256-1;                          // PWM Period
 	TA0CCTL1 = OUTMOD_7;                      // CCR1 reset/set
-	TA0CCR1 = 0;                            // CCR1 PWM duty cycle
+	TA0CCR1 = 254;                            // CCR1 PWM duty cycle
 	TA0CCTL2 = OUTMOD_7;                      // CCR2 reset/set
 	TA0CCR2 = 0;                            // CCR2 PWM duty cycle
 	TA0CCTL3 = OUTMOD_7;
