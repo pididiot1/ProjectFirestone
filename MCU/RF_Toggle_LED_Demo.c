@@ -104,8 +104,11 @@ volatile unsigned char uartReady = 0;
 
 /******************* MY PIEZO GLOBALS ************************************************/
 
-#define   Num_of_Results   100
-volatile unsigned int piezoResults[Num_of_Results];
+#define   Num_of_Results   5000
+volatile unsigned int average = 0;
+volatile unsigned int ticks = 0;
+volatile unsigned int threshold = 250;
+volatile unsigned char touchDetected = 0;
 
 /******************* END MY PIEZO GLOBALS ********************************************/
 
@@ -191,6 +194,14 @@ void main( void )
 			uartBuffer[0] = MY_PACKET_LEN;
 			Transmit( (unsigned char*)uartBuffer, sizeof uartBuffer);
 			transmitting = 1;
+		} else if(touchDetected) {
+			TA0CCR1 = 100;
+			for(i = 0; i < 400; i++) {
+				__no_operation();
+			}
+			TA0CCR1 = 0;
+
+//			currState.blue = 0;
 		}
 
 		/*
@@ -259,7 +270,7 @@ void InitLEDTimer(void) {
 
 	TA0CCR0 = 256-1;                          // PWM Period
 	TA0CCTL1 = OUTMOD_7;                      // CCR1 reset/set
-	TA0CCR1 = 254;                            // CCR1 PWM duty cycle
+	TA0CCR1 = 0;                            // CCR1 PWM duty cycle
 	TA0CCTL2 = OUTMOD_7;                      // CCR2 reset/set
 	TA0CCR2 = 0;                            // CCR2 PWM duty cycle
 	TA0CCTL3 = OUTMOD_7;
@@ -291,7 +302,7 @@ void InitPiezo(void) {
 	P2SEL |= 0x01;                            // Enable A/D channel A0
 
 	/* Initialize ADC12_A */
-	ADC12CTL0 = ADC12ON+ADC12SHT0_8+ADC12MSC; // Turn on ADC12, set sampling time
+	ADC12CTL0 = ADC12ON+ADC12SHT0_15+ADC12MSC; // Turn on ADC12, set sampling time
 	// set multiple sample conversion
 	ADC12CTL1 = ADC12SHP+ADC12CONSEQ_2;       // Use sampling timer, set mode
 	ADC12IE = 0x01;                           // Enable ADC12IFG.0
@@ -451,7 +462,6 @@ __interrupt void USCI_A0_ISR(void)
 #pragma vector=ADC12_VECTOR
 __interrupt void ADC12ISR (void)
 {
-	static unsigned char index = 0;
 
 	switch(__even_in_range(ADC12IV,34))
 	{
@@ -459,14 +469,20 @@ __interrupt void ADC12ISR (void)
 	case  2: break;                           // Vector  2:  ADC overflow
 	case  4: break;                           // Vector  4:  ADC timing overflow
 	case  6:                                  // Vector  6:  ADC12IFG0
-		piezoResults[index] = ADC12MEM0;             // Move results
-		if(piezoResults[index] < 1000) {
-			__no_operation();
+		if(ADC12MEM0 < average) {
+			ticks++;
+		} else if(touchDetected){
+			ticks = 0;
+			touchDetected = 0;
 		}
-		index++;                                // Increment results index, modulo; Set Breakpoint1 here
+		// Recalculate average
+		average = average - (average/Num_of_Results) + (ADC12MEM0/Num_of_Results);
 
-		if (index == Num_of_Results)
-			index = 0;                            // Reset the index; Set Breakpoint here
+		if(ticks >= threshold && !touchDetected) {
+			touchDetected = 1;
+			__bic_SR_register_on_exit(LPM3_bits); // Exit active
+		}
+		break;
 
 	case  8: break;                           // Vector  8:  ADC12IFG1
 	case 10: break;                           // Vector 10:  ADC12IFG2
