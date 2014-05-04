@@ -156,7 +156,6 @@ void main( void )
 
 	while (1)
 	{
-		setRTC(1);
 		__bis_SR_register( LPM3_bits + GIE );
 		__no_operation();
 
@@ -359,8 +358,6 @@ void setRTC(unsigned char enable) {
 }
 
 void updateState(void) {
-	// Disable interrupts while updating state
-	__dint();
 
 	currState.holdID = RxBuffer[iHoldID];
 	currState.powerState = RxBuffer[iPowerState];
@@ -389,8 +386,6 @@ void updateState(void) {
 		}
 	}
 
-	// Enable interrupts when done
-	__eint();
 }
 
 void updateStateUart(void) {
