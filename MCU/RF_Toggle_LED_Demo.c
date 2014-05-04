@@ -104,13 +104,25 @@ volatile unsigned char uartReady = 0;
 
 /******************* MY PIEZO GLOBALS ************************************************/
 
-#define   Num_of_Results   5000
+#define		Num_of_Results  2
+#define 	threshold		10
 volatile unsigned int average = 0;
 volatile unsigned int ticks = 0;
-volatile unsigned int threshold = 250;
 volatile unsigned char touchDetected = 0;
 
+//unsigned int results[Num_of_Results];
+volatile unsigned int index = 0;
+
 /******************* END MY PIEZO GLOBALS ********************************************/
+
+/******************* MY RTC GLOBALS ********************************************/
+
+volatile unsigned char timerGoal = 2;
+volatile unsigned char timerTick = 0;
+volatile unsigned char timerExpired = 0;
+volatile unsigned char toggle = 1;
+
+/******************* END MY RTC GLOBALS ****************************************/
 
 /******************* HOLD IDENTIFIERS ***********************************************/
 
@@ -133,49 +145,32 @@ void main( void )
 
 	ResetRadioCore();
 	InitRadio();
-	InitButtonLeds();
-	InitLEDTimer();
+	//	InitButtonLeds();
+	InitLEDs();
 	InitUART();
 	InitPiezo();
+	InitRTC();
 
 	ReceiveOn();
 	receiving = 1;
 
 	while (1)
 	{
+		setRTC(1);
 		__bis_SR_register( LPM3_bits + GIE );
 		__no_operation();
 
-		if (buttonPressed)                      // Process a button press->transmit
-		{
-			//			P3OUT |= BIT1;                        // Pulse LED during Transmit
-			buttonPressed = 0;
-			P1IFG = 0;
-
-			ReceiveOff();
-			receiving = 0;
-			Transmit( (unsigned char*)myBuffer, sizeof myBuffer);
-			transmitting = 1;
-
-			P1IE |= BIT7;                         // Re-enable button press
-		} else if(!transmitting) {
-			ReceiveOn();
-			receiving = 1;
-		}
+		ReceiveOff();
+		receiving = 0;
 
 
 		if(newState) {
 			newState = 0;
-			// Turn receiving off to grab data
-			ReceiveOff();
-			receiving = 0;
 
 			// Update current state from RxBuffer
 			updateState();
 			__no_operation();
 
-			ReceiveOn();
-			receiving = 1;
 		} else if(uartReady) {
 			uartReady = 0;
 			for(i = 1; i < 9; i++) {
@@ -189,28 +184,32 @@ void main( void )
 
 			updateStateUart();
 
-			ReceiveOff();
-			receiving = 0;
 			uartBuffer[0] = MY_PACKET_LEN;
 			Transmit( (unsigned char*)uartBuffer, sizeof uartBuffer);
 			transmitting = 1;
 		} else if(touchDetected) {
+
 			TA0CCR1 = 100;
 			for(i = 0; i < 400; i++) {
 				__no_operation();
 			}
 			TA0CCR1 = 0;
-
-//			currState.blue = 0;
+		} else if(timerExpired) {
+			timerExpired = 0;
+			setLEDs(toggle);
+			if(toggle) {
+				toggle = 0;
+			} else {
+				toggle = 1;
+			}
+			timerTick = 0;
 		}
 
-		/*
-		if(!receiving && !transmitting && !buttonPressed)
+		if(transmitting == 0)
 		{
 			ReceiveOn();
 			receiving = 1;
 		}
-		 */
 	}
 }
 
@@ -260,7 +259,11 @@ void InitRadio(void)
 	WriteSinglePATable(PATABLE_VAL);
 }
 
-void InitLEDTimer(void) {
+void InitLEDs(void) {
+
+	// Set up LED
+	P3DIR |= BIT1 + BIT2 + BIT3;                     // P2.0 and P2.2 output
+	P3SEL |= BIT1 + BIT2 + BIT3;                     // P2.0 and P2.2 options select
 
 	PMAPPWD = 0x02D52;                        // Get write-access to port mapping regs
 	P3MAP1 = PM_TA0CCR1A;                     // Map TA1CCR1 output to P3.0
@@ -270,12 +273,24 @@ void InitLEDTimer(void) {
 
 	TA0CCR0 = 256-1;                          // PWM Period
 	TA0CCTL1 = OUTMOD_7;                      // CCR1 reset/set
-	TA0CCR1 = 0;                            // CCR1 PWM duty cycle
+	TA0CCR1 = 244;                            // CCR1 PWM duty cycle
 	TA0CCTL2 = OUTMOD_7;                      // CCR2 reset/set
 	TA0CCR2 = 0;                            // CCR2 PWM duty cycle
 	TA0CCTL3 = OUTMOD_7;
 	TA0CCR3 = 0;
-	TA0CTL = TASSEL_2 + MC_1 + TACLR;         // SMCLK, up mode, clear TAR
+	TA0CTL = TASSEL_2 + MC_0 + TACLR;         // SMCLK, up mode, clear TAR
+}
+
+void setLEDs(unsigned char enable) {
+	if(enable) {
+		TA0CCR1 = currState.red;
+		TA0CCR2 = currState.green;
+		TA0CCR3 = currState.blue;
+	} else {
+		TA0CCR1 = 0;
+		TA0CCR2 = 0;
+		TA0CCR3 = 0;
+	}
 }
 
 void InitUART(void) {
@@ -294,7 +309,15 @@ void InitUART(void) {
 	UCA0MCTL = UCBRS_0 + UCBRF_13 + UCOS16;   // Modln UCBRSx=0, UCBRFx=0,
 	// over sampling
 	UCA0CTL1 &= ~UCSWRST;                     // **Initialize USCI state machine**
-	UCA0IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
+	//	UCA0IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
+}
+
+void setUART(unsigned char enable) {
+	if(enable) {
+		UCA0IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
+	} else {
+		UCA0IE &= ~UCRXIE;                         // Disable USCI_A0 RX interrupt
+	}
 }
 
 void InitPiezo(void) {
@@ -305,12 +328,40 @@ void InitPiezo(void) {
 	ADC12CTL0 = ADC12ON+ADC12SHT0_15+ADC12MSC; // Turn on ADC12, set sampling time
 	// set multiple sample conversion
 	ADC12CTL1 = ADC12SHP+ADC12CONSEQ_2;       // Use sampling timer, set mode
-	ADC12IE = 0x01;                           // Enable ADC12IFG.0
+	//	ADC12IE = 0x01;                           // Enable ADC12IFG.0
 	ADC12CTL0 |= ADC12ENC;                    // Enable conversions
 	ADC12CTL0 |= ADC12SC;                     // Start conversion
 }
 
+void setPiezo(unsigned char enable) {
+	if(enable) {
+		ADC12IE = 0x01;
+	} else {
+		ADC12IE = 0;
+	}
+}
+
+// Initialize RTC to 1s interrupt
+void InitRTC(void) {
+	RTCCTL01 = RTCSSEL_2 + RTCTEV_0; // Counter Mode, RTC1PS, 8-bit ovf
+	//	RTCCTL01 = RTCTEVIE + RTCSSEL_2 + RTCTEV_0; // Counter Mode, RTC1PS, 8-bit ovf
+	// overflow interrupt enable
+	RTCPS0CTL = RT0PSDIV_2;                   // ACLK, /8, start timer
+	RTCPS1CTL = RT1SSEL_2 + RT1PSDIV_3;       // out from RT0PS, /16, start timer
+}
+
+void setRTC(unsigned char enable) {
+	if(enable) {
+		RTCCTL01 |= RTCTEVIE;
+	} else {
+		RTCCTL01 &= ~RTCTEVIE;
+	}
+}
+
 void updateState(void) {
+	// Disable interrupts while updating state
+	__dint();
+
 	currState.holdID = RxBuffer[iHoldID];
 	currState.powerState = RxBuffer[iPowerState];
 	currState.startOn = RxBuffer[iStartOn];
@@ -320,9 +371,26 @@ void updateState(void) {
 	currState.green = RxBuffer[iGreen];
 	currState.blue = RxBuffer[iBlue];
 
-	TA0CCR1 = currState.red;
-	TA0CCR2 = currState.green;
-	TA0CCR3 = currState.blue;
+	if(currState.powerState == OFF) {
+		setLEDs(0);
+		setPiezo(1);
+	} else if(currState.powerState == ACTIVE) {
+		setLEDs(currState.startOn);
+		if(!currState.startOn) {
+			if(currState.startDelay == 0) {
+				setPiezo(1);
+			} else {
+				timerGoal = currState.startDelay;
+			}
+		} else {
+			if(currState.litTime != 0) {
+				timerGoal = currState.litTime;
+			}
+		}
+	}
+
+	// Enable interrupts when done
+	__eint();
 }
 
 void updateStateUart(void) {
@@ -369,7 +437,7 @@ void ReceiveOff(void)
 	// It is possible that ReceiveOff is called while radio is receiving a packet.
 	// Therefore, it is necessary to flush the RX FIFO after issuing IDLE strobe
 	// such that the RXFIFO is empty prior to receiving a packet.
-	Strobe( RF_SIDLE );
+	// Strobe( RF_SIDLE );
 	Strobe( RF_SFRX  );
 }
 
@@ -469,19 +537,25 @@ __interrupt void ADC12ISR (void)
 	case  2: break;                           // Vector  2:  ADC overflow
 	case  4: break;                           // Vector  4:  ADC timing overflow
 	case  6:                                  // Vector  6:  ADC12IFG0
-		if(ADC12MEM0 < average) {
-			ticks++;
-		} else if(touchDetected){
-			ticks = 0;
-			touchDetected = 0;
-		}
-		// Recalculate average
+		//		results[index] = ADC12MEM0;
+		//		index++;
+		//		Recalculate average
 		average = average - (average/Num_of_Results) + (ADC12MEM0/Num_of_Results);
+		//		index = ADC12MEM0;
+		if(average < 500) {
+			ticks++;
+		} else {
+			touchDetected = 0;
+			ticks = 0;
+		}
 
-		if(ticks >= threshold && !touchDetected) {
+
+		if(ticks >= threshold) {
 			touchDetected = 1;
 			__bic_SR_register_on_exit(LPM3_bits); // Exit active
 		}
+		//		if(index == Num_of_Results)
+		//			index = 0;
 		break;
 
 	case  8: break;                           // Vector  8:  ADC12IFG1
@@ -498,6 +572,35 @@ __interrupt void ADC12ISR (void)
 	case 30: break;                           // Vector 30:  ADC12IFG12
 	case 32: break;                           // Vector 32:  ADC12IFG13
 	case 34: break;                           // Vector 34:  ADC12IFG14
+	default: break;
+	}
+}
+
+#pragma vector=RTC_VECTOR
+__interrupt void RTC_ISR(void)
+{
+	switch(__even_in_range(RTCIV,16))
+	{
+	case 0: break;                          // No interrupts
+	case 2: break;                          // RTCRDYIFG
+	case 4:                                 // RTCEVIFG
+		if(timerTick == timerGoal) {
+			timerExpired = 1;
+			if(currState.litTime != 0) {
+				timerGoal = currState.litTime;
+				currState.litTime = 0;
+			}
+			__bic_SR_register_on_exit(LPM3_bits); // Exit active
+		} else {
+			timerTick++;
+		}
+		break;
+	case 6: break;                          // RTCAIFG
+	case 8: break;                          // RT0PSIFG
+	case 10: break;                         // RT1PSIFG
+	case 12: break;                         // Reserved
+	case 14: break;                         // Reserved
+	case 16: break;                         // Reserved
 	default: break;
 	}
 }
