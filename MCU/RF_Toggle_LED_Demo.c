@@ -120,19 +120,19 @@ volatile unsigned int index = 0;
 volatile unsigned char timerGoal = 2;
 volatile unsigned char timerTick = 0;
 volatile unsigned char timerExpired = 0;
-volatile unsigned char toggle = 1;
+volatile unsigned char toggle = 0;
 
 /******************* END MY RTC GLOBALS ****************************************/
 
 /******************* HOLD IDENTIFIERS ***********************************************/
 
-#define myID 	0x01
+#define myID 	0x00
 #define UART	1
 #define PIEZO	1
 
 /******************* END HOLD IDENTIFIERS *******************************************/
 
-#define myID	0x01
+
 
 
 void main( void )
@@ -150,6 +150,8 @@ void main( void )
 	InitUART();
 	InitPiezo();
 	InitRTC();
+
+	InitWDT();
 
 	ReceiveOn();
 	receiving = 1;
@@ -187,12 +189,19 @@ void main( void )
 			Transmit( (unsigned char*)uartBuffer, sizeof uartBuffer);
 			transmitting = 1;
 		} else if(touchDetected) {
-
-			TA0CCR1 = 100;
-			for(i = 0; i < 400; i++) {
-				__no_operation();
+			if(!toggle) {
+				int j;
+				for(j = 0; j < 3; j++) {
+					TA0CCR1 = 254;
+					for(i = 0; i < 400; i++) {
+						__no_operation();
+					}
+					TA0CCR1 = currState.red;
+					for(i = 0; i < 400; i++) {
+						__no_operation();
+					}
+				}
 			}
-			TA0CCR1 = 0;
 		} else if(timerExpired) {
 			timerExpired = 0;
 			setLEDs(toggle);
@@ -272,20 +281,22 @@ void InitLEDs(void) {
 
 	TA0CCR0 = 256-1;                          // PWM Period
 	TA0CCTL1 = OUTMOD_7;                      // CCR1 reset/set
-	TA0CCR1 = 244;                            // CCR1 PWM duty cycle
+	TA0CCR1 = 0;                            // CCR1 PWM duty cycle
 	TA0CCTL2 = OUTMOD_7;                      // CCR2 reset/set
 	TA0CCR2 = 0;                            // CCR2 PWM duty cycle
 	TA0CCTL3 = OUTMOD_7;
 	TA0CCR3 = 0;
-	TA0CTL = TASSEL_2 + MC_0 + TACLR;         // SMCLK, up mode, clear TAR
+	TA0CTL = TASSEL_2 + MC_1 + TACLR;         // SMCLK, up mode, clear TAR
 }
 
 void setLEDs(unsigned char enable) {
 	if(enable) {
+		toggle = 1;
 		TA0CCR1 = currState.red;
 		TA0CCR2 = currState.green;
 		TA0CCR3 = currState.blue;
 	} else {
+		toggle = 0;
 		TA0CCR1 = 0;
 		TA0CCR2 = 0;
 		TA0CCR3 = 0;
@@ -355,6 +366,11 @@ void setRTC(unsigned char enable) {
 	} else {
 		RTCCTL01 &= ~RTCTEVIE;
 	}
+}
+
+void InitWDT(void) {
+	WDTCTL = WDT_MDLY_32;                     // WDT 32ms, SMCLK, interval timer
+	SFRIE1 |= WDTIE;                          // Enable WDT interrupt
 }
 
 void updateState(void) {
@@ -584,6 +600,8 @@ __interrupt void RTC_ISR(void)
 			if(currState.litTime != 0) {
 				timerGoal = currState.litTime;
 				currState.litTime = 0;
+			} else {
+				setRTC(0);
 			}
 			__bic_SR_register_on_exit(LPM3_bits); // Exit active
 		} else {
@@ -600,6 +618,15 @@ __interrupt void RTC_ISR(void)
 	}
 }
 
+// Watchdog Timer interrupt service routine
+#pragma vector=WDT_VECTOR
+__interrupt void WDT_ISR(void)
+{
+	if(!transmitting) {
+		ReceiveOn();
+		receiving = 1;
+	}
+}
 
 
 #pragma vector=PORT1_VECTOR
